@@ -7,3 +7,4 @@ numpy
 matplotlib
 mplfinance
 python-multipart
+MetaTrader5; sys_platform == 'win32'
