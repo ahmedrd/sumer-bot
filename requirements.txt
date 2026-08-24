@@ -6,4 +6,4 @@ pandas
 numpy
 matplotlib
 mplfinance
-pandas-ta==0.3.14b0
+pandas-ta
