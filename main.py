@@ -32,7 +32,7 @@ def init_schedules_db():
         conn.commit()
         conn.close()
     except Exception as e:
-        print(f"خطأ في إنشاء قاعدة بيانات الجدول: {e}")
+        print(f"❌ خطأ في إنشاء قاعدة بيانات الجدول: {e}")
 
 # تهيئة قواعد البيانات عند الإقلاع
 init_schedules_db()
@@ -51,7 +51,7 @@ def set_bot_status(status: bool):
         with open(STATE_FILE, "w") as f:
             f.write(str(status))
     except Exception as e:
-        print(f"خطأ في حفظ حالة البوت: {e}")
+        print(f"❌ خطأ في حفظ حالة البوت: {e}")
 
 def get_creator_handle():
     if os.path.exists(CREATOR_FILE):
@@ -67,7 +67,7 @@ def set_creator_handle(handle: str):
         with open(CREATOR_FILE, "w") as f:
             f.write(handle.strip())
     except Exception as e:
-        print(f"خطأ في حفظ معرف المطور: {e}")
+        print(f"❌ خطأ في حفظ معرف المطور: {e}")
 
 auto_alert_status = {"running": get_bot_status()}
 background_task_ref = None  # مرجع للحفاظ على حية المهمة في الخلفية
@@ -75,12 +75,17 @@ background_task_ref = None  # مرجع للحفاظ على حية المهمة �
 @app.on_event("startup")
 async def startup_event():
     global background_task_ref
-    init_db()
-    init_schedules_db()
+    try:
+        init_db()
+        init_schedules_db()
+    except Exception as e:
+        print(f"❌ خطأ أثناء تهيئة قواعد البيانات عند الإقلاع: {e}")
+        
     print("🚀 تم إقلاع منصة سومر الذكية بنجاح...")
     if auto_alert_status["running"]:
         print("⚡ التشغيل التلقائي مفعل مسبقاً، يتم إطلاقه في الخلفية الآن...")
-        background_task_ref = asyncio.create_task(background_auto_alerter())
+        if background_task_ref is None or background_task_ref.done():
+            background_task_ref = asyncio.create_task(background_auto_alerter())
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -200,13 +205,22 @@ HTML_TEMPLATE = """
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    conn = sqlite3.connect("sumer_system.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM subscribers")
-    subscribers = cursor.fetchall()
-    conn.close()
-    markets = get_all_markets()
+    try:
+        conn = sqlite3.connect("sumer_system.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM subscribers")
+        subscribers = cursor.fetchall()
+        conn.close()
+    except Exception as e:
+        print(f"❌ خطأ في جلب المشتركين للوحة التحكم: {e}")
+        subscribers = []
+
+    try:
+        markets = get_all_markets()
+    except Exception as e:
+        print(f"❌ خطأ في جلب الأسواق: {e}")
+        markets = []
     
     template = jinja2.Template(HTML_TEMPLATE)
     html_content = template.render(
@@ -219,7 +233,10 @@ async def dashboard(request: Request):
 
 @app.post("/add-user")
 async def add_user(name: str = Form(...), chat_id: str = Form(...)):
-    add_subscriber(name, chat_id)
+    try:
+        add_subscriber(name, chat_id)
+    except Exception as e:
+        print(f"❌ خطأ في إضافة المشترك: {e}")
     return HTMLResponse(content="<script>alert('تم إضافة المشترك بنجاح!'); window.location.href='/';</script>")
 
 @app.post("/update-creator")
@@ -256,12 +273,12 @@ async def toggle_auto():
     set_bot_status(auto_alert_status["running"])
     
     if auto_alert_status["running"]:
-        # بدء مهمة الخلفية وضمان حفظ المرجع لكي لا يحذفها الـ Garbage Collector
-        background_task_ref = asyncio.create_task(background_auto_alerter())
+        if background_task_ref is None or background_task_ref.done():
+            background_task_ref = asyncio.create_task(background_auto_alerter())
         print("🟢 تم تشغيل نظام التحليل التلقائي في الخلفية.")
     else:
         print("🔴 تم إيقاف نظام التحليل التلقائي.")
-        if background_task_ref:
+        if background_task_ref and not background_task_ref.done():
             background_task_ref.cancel()
             
     return HTMLResponse(content="<script>window.location.href='/';</script>")
@@ -293,8 +310,9 @@ async def metatrader_webhook(data: dict = Body(...)):
         )
 
         subscribers = get_all_subscribers()
-        for chat_id in subscribers:
-            send_telegram_photo_and_report(chat_id, report, image_path=None)
+        if subscribers:
+            for chat_id in subscribers:
+                send_telegram_photo_and_report(chat_id, report, image_path=None)
             
         return {"status": "success", "message": "تم بث إشارة المنصة مع مستويات الحماية بدقة"}
     except Exception as e:
@@ -351,8 +369,9 @@ def execute_market_analysis_and_notify(symbol):
         )
 
         subscribers = get_all_subscribers()
-        for chat_id in subscribers:
-            send_telegram_photo_and_report(chat_id, report, image_path)
+        if subscribers:
+            for chat_id in subscribers:
+                send_telegram_photo_and_report(chat_id, report, image_path)
             
         if image_path and os.path.exists(image_path):
             try:
@@ -366,26 +385,35 @@ def execute_market_analysis_and_notify(symbol):
         return False
 
 async def background_auto_alerter():
-    """حلقة خلفية متواصلة تفحص الأسواق وتدير التحليل التلقائي دون انقطاع"""
-    print("🔄 بدأت حلقة المراقبة والتحليل الذكي في الخلفية...")
-    while auto_alert_status["running"]:
+    """حلقة خلفية ذكية ومحصنة بالكامل ضد الموت المفاجئ لتفحص الأسواق بلا توقف"""
+    print("🔄 بدأت حلقة المراقبة والتحليل الذكي في الخلفية (نسخة محمية 24/7)...")
+    while True:
         try:
+            if not auto_alert_status["running"]:
+                await asyncio.sleep(2)
+                continue
+                
             markets = get_all_markets()
             if markets:
                 for market in markets:
                     if not auto_alert_status["running"]:
                         break
-                    symbol = market['symbol']
-                    print(f"📊 جارٍ تحليل الأصل تلقائياً: {symbol}")
-                    execute_market_analysis_and_notify(symbol)
-                    # فاصل زمني قصير بين كل سوق لكي لا يحدث ضغط على السيرفر أو تليجرام
+                    symbol = market.get('symbol')
+                    if symbol:
+                        print(f"📊 جارٍ تحليل الأصل تلقائياً: {symbol}")
+                        try:
+                            execute_market_analysis_and_notify(symbol)
+                        except Exception as inner_e:
+                            print(f"⚠️ خطأ في معالجة السهم {symbol}: {inner_e}")
+                    
+                    # فاصل زمني محمي بين كل سهم
                     await asyncio.sleep(15)
             else:
-                print("⚠️ لا توجد أسواق مسجلة للفحص.")
+                print("⚠️ لا توجد أسواق مسجلة للفحص حالياً.")
         except Exception as e:
-            print(f"❌ خطأ داخل حلقة التنبيهات التلقائية: {e}")
+            print(f"❌ خطأ جوهري طارئ داخل حلقة الخلفية (تم الاحتفاظ بالحلقة حية): {e}")
         
-        # الانتظار لمدة ساعة (3600 ثانية) مع فحص حالة التشغيل كل ثانية
+        # دورة انتظار مرنة تفحص الحالة كل ثانية لضمان الاستجابة السريعة للإيقاف والتشغيل
         for _ in range(3600):
             if not auto_alert_status["running"]:
                 break
