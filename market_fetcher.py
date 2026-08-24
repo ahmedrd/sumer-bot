@@ -1,16 +1,21 @@
 import requests
 import pandas as pd
-import pandas_ta as ta
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import mplfinance as mpf
 import os
 
+def calculate_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 def get_market_data(symbol, interval="1h", limit=50):
     clean_symbol = symbol.strip().upper().replace("-", "")
     
-    # محاولة جلب البيانات الحية (تنجح للعملات الرقمية، وإذا فشلت للأسهم يتم توليد بيانات تحليلية واقعية مستندة للسعر العالمي الحقيقي)
     try:
         url = f"https://api.binance.com/api/v3/klines?symbol={clean_symbol}&interval={interval}&limit={limit}"
         response = requests.get(url, timeout=6)
@@ -27,9 +32,8 @@ def get_market_data(symbol, interval="1h", limit=50):
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
         else:
-            raise Exception("Fallback to AI simulation model")
+            raise Exception("Fallback")
     except Exception:
-        # محاكاة ذكية متقدمة للأسهم والسلع بناءً على سلوك السوق الحقيقي
         dates = pd.date_range(end=pd.Timestamp.now(), periods=50, freq='h')
         base_p = 250.0 if clean_symbol in ["AAPL", "MSFT"] else (900.0 if clean_symbol == "NVDA" else 2000.0)
         if "XAU" in clean_symbol: base_p = 2450.0
@@ -43,19 +47,22 @@ def get_market_data(symbol, interval="1h", limit=50):
             'volume': 15000.0
         }, index=dates)
 
-    # حساب المؤشرات الفنية الاحترافية المعتمدة عالمياً
-    df['RSI'] = ta.rsi(df['close'], length=14)
-    df['SMA_20'] = ta.sma(df['close'], length=20)
-    df['SMA_50'] = ta.sma(df['close'], length=50)
-    df['EMA_9'] = ta.ema(df['close'], length=9)
+    # حساب المؤشرات الفنية مباشرة بدون الحاجة لـ pandas-ta
+    df['RSI'] = calculate_rsi(df['close'], length=14)
+    df['SMA_20'] = df['close'].rolling(window=20).mean()
+    df['SMA_50'] = df['close'].rolling(window=50).mean()
+    df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
+
+    # تعويض القيم الفارغة الأولى إن وجدت
+    df.fillna(method='bfill', inplace=True)
+    df.fillna(50, inplace=True)
 
     last_row = df.iloc[-1]
-    prev_row = df.iloc[-2]
+    prev_row = df.iloc[-2] if len(df) > 1 else last_row
     
     support = df['low'].tail(20).min()
     resistance = df['high'].tail(20).max()
     
-    # تحديد نوع الأصل بدقة خبيرة
     asset_type = "أصل مالي عالمي معتمد"
     if "USDT" in clean_symbol:
         asset_type = "عملة رقمية مشفرة (Crypto Asset)"
