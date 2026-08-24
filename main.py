@@ -18,7 +18,6 @@ auto_alert_status = {"running": False}
 def startup_event():
     init_db()
 
-# تصميم الواجهة الأمامية المطور بأسلوب عصري واحترافي مع أزرار الحذف والتحكم
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -212,11 +211,11 @@ def execute_market_analysis_and_notify(symbol):
     monthly_view = "💎 نظرة هيكلية إيجابية تدعم الاستثمار طويل الأجل"
 
     report = (
-        f"🌐 *منصة سومر الذكية - تقرير الذكاء الاصطناعي المالي الخبير*\n\n"
+        f"🌐 *منصة سومر الذكية - تقرير مباشر*\n\n"
         f"📌 *فئة الأصل:* `{asset_type}`\n"
         f"🏷 *رمز الأصل:* `{symbol.upper()}`\n"
         f"💵 *السعر الفوري الحالي:* `{price:,.2f}`\n\n"
-        f"🤖 *القرار الاستراتيجي للذكاء الاصطناعي:* \n*{decision}*\n"
+        f"🤖 *القرار النهائي:* \n*{decision}*\n"
         f"📊 *مؤشر الثقة والاعتمادية:* `{confidence}`\n\n"
         f"💡 *التحليل والسبب الفني المعمق:*\n_{ai_reason}_\n\n"
         f"⏱ *تحليل النطاقات الزمنية المتعددة:*\n"
