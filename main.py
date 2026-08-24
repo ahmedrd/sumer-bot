@@ -11,12 +11,37 @@ from market_fetcher import get_market_data
 
 app = FastAPI()
 
-# حالة نظام التنبيهات التلقائية في الخلفية
-auto_alert_status = {"running": False}
+STATE_FILE = "bot_state.txt"
+CREATOR_FILE = "creator_handle.txt"
+
+def get_bot_status():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            return f.read().strip() == "True"
+    return False
+
+def set_bot_status(status: bool):
+    with open(STATE_FILE, "w") as f:
+        f.write(str(status))
+
+def get_creator_handle():
+    if os.path.exists(CREATOR_FILE):
+        with open(CREATOR_FILE, "r") as f:
+            return f.read().strip()
+    return "AhmedRadhi" # حسابك الافتراضي
+
+def set_creator_handle(handle: str):
+    with open(CREATOR_FILE, "w") as f:
+        f.write(handle.strip())
+
+auto_alert_status = {"running": get_bot_status()}
 
 @app.on_event("startup")
 def startup_event():
     init_db()
+    # استئناف التشغيل في الخلفية إذا كانت الحالة مفعلة مسبقاً
+    if auto_alert_status["running"]:
+        asyncio.create_task(background_auto_alerter())
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -28,91 +53,102 @@ HTML_TEMPLATE = """
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>body { font-family: 'Cairo', sans-serif; }</style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-6">
-    <div class="max-w-5xl mx-auto">
-        <header class="text-center mb-10">
-            <h1 class="text-4xl font-bold text-amber-400 mb-2">🏛 منصة سومر الذكية للتداول الاحترافي</h1>
-            <p class="text-gray-400">نظام تحليل الأسواق العالمي - إرسال التقارير الفنية المتقدمة وسكرين شوت الشارت للمشتركين</p>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-6 selection:bg-amber-500 selection:text-black">
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-10 border-b border-gray-800 pb-6">
+            <h1 class="text-4xl font-extrabold text-amber-400 mb-2 tracking-wide">🏛 منصة سومر الذكية للتداول الاحترافي</h1>
+            <p class="text-gray-400 text-sm">نظام تحليل الأسواق العالمي - إرسال التقارير الفنية المتقدمة وسكرين شوت الشارت للمشتركين</p>
         </header>
 
         <!-- لوحة التحكم في نظام التنبيهات التلقائية -->
-        <div class="mb-6 bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700 flex justify-between items-center">
-            <div>
-                <h2 class="text-xl font-semibold text-amber-300">⚙️ التنبيهات التلقائية المجدولة</h2>
-                <p class="text-sm text-gray-400 mt-1">الحالة: <span class="font-bold {{ 'text-emerald-400' if auto_running else 'text-rose-400' }}">{{ 'مفعلة وتعمل في الخلفية 🚀' if auto_running else 'متوقفة ⏹' }}</span></p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="md:col-span-2 bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800 flex justify-between items-center">
+                <div>
+                    <h2 class="text-xl font-semibold text-amber-300">⚙️ التنبيهات التلقائية المجدولة</h2>
+                    <p class="text-sm text-gray-400 mt-1">الحالة: <span class="font-bold {{ 'text-emerald-400' if auto_running else 'text-rose-400' }}">{{ 'مفعلة وتعمل في الخلفية 🚀' if auto_running else 'متوقفة ⏹' }}</span></p>
+                </div>
+                <form action="/toggle-auto" method="POST">
+                    {% if auto_running %}
+                        <button type="submit" class="bg-rose-600 hover:bg-rose-500 transition text-white font-bold px-6 py-3 rounded-xl shadow-lg cursor-pointer">إيقاف التلقائي</button>
+                    {% else %}
+                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 transition text-white font-bold px-6 py-3 rounded-xl shadow-lg cursor-pointer">تشغيل التلقائي</button>
+                    {% endif %}
+                </form>
             </div>
-            <form action="/toggle-auto" method="POST">
-                {% if auto_running %}
-                    <button type="submit" class="bg-rose-600 hover:bg-rose-500 transition text-white font-bold px-6 py-3 rounded-lg shadow">إيقاف التلقائي</button>
-                {% else %}
-                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 transition text-white font-bold px-6 py-3 rounded-lg shadow">تشغيل التلقائي</button>
-                {% endif %}
-            </form>
+
+            <!-- إعدادات حساب المتابع / المطور -->
+            <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
+                <h3 class="text-lg font-semibold text-cyan-400 mb-2">👨‍💻 حساب المتابعة الشخصي</h3>
+                <form action="/update-creator" method="POST" class="space-y-3">
+                    <input type="text" name="creator" value="{{ creator_handle }}" placeholder="معرف تليجرام بدون @" required class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+                    <button type="submit" class="w-full bg-cyan-700 hover:bg-cyan-600 transition text-white font-semibold py-2 rounded-lg text-sm shadow">حفظ المعرف</button>
+                </form>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <!-- قسم إضافة مشترك تليجرام جديد -->
-            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+            <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
                 <h2 class="text-xl font-semibold mb-4 text-emerald-400">➕ إضافة مشترك تليجرام جديد</h2>
                 <form action="/add-user" method="POST" class="space-y-4">
                     <div>
                         <label class="block text-sm mb-1 text-gray-300">اسم المشترك:</label>
-                        <input type="text" name="name" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-emerald-500">
+                        <input type="text" name="name" required class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500">
                     </div>
                     <div>
                         <label class="block text-sm mb-1 text-gray-300">رقم الـ Chat ID:</label>
-                        <input type="text" name="chat_id" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-emerald-500">
+                        <input type="text" name="chat_id" required class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500">
                     </div>
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 transition text-white font-bold p-3 rounded-lg shadow">حفظ المشترك</button>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 transition text-white font-bold p-3 rounded-xl shadow-lg cursor-pointer">حفظ المشترك</button>
                 </form>
             </div>
 
-            <!-- قسم التحليل الفوري وإرسال السكرين شوت يدوياً -->
-            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+            <!-- قسم التحليل الفوري وإرسال الشارت يدوياً -->
+            <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
                 <h2 class="text-xl font-semibold mb-4 text-cyan-400">📊 تحليل وإرسال شارت فوري</h2>
                 <form action="/run-analysis" method="POST" class="space-y-4">
                     <div>
                         <label class="block text-sm mb-1 text-gray-300">اختر السوق أو السلعة:</label>
-                        <select name="symbol" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-cyan-500">
+                        <select name="symbol" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-500">
                             {% for market in markets %}
                                 <option value="{{ market.symbol }}">{{ market.name }} ({{ market.symbol }})</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 transition text-white font-bold p-3 rounded-lg mt-8 shadow">إرسال التقرير والشارت الآن 📈</button>
+                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 transition text-white font-bold p-3 rounded-xl mt-8 shadow-lg cursor-pointer">إرسال التقرير والشارت الآن 📈</button>
                 </form>
             </div>
         </div>
 
         <!-- قائمة المشتركين المسجلين مع خيارات التحكم والحذف -->
-        <div class="mt-8 bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+        <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
             <h2 class="text-xl font-semibold mb-4 text-purple-400">👥 المشتركون الحاليون ({{ subscribers|length }})</h2>
             <div class="overflow-x-auto">
                 <table class="w-full text-right">
                     <thead>
-                        <tr class="border-b border-gray-700 text-gray-400">
-                            <th class="pb-3">الاسم</th>
-                            <th class="pb-3">Chat ID</th>
-                            <th class="pb-3">الحالة</th>
-                            <th class="pb-3 text-center">الإجراءات والتحكم</th>
+                        <tr class="border-b border-gray-800 text-gray-400 text-sm">
+                            <th class="pb-3 px-2">الاسم</th>
+                            <th class="pb-3 px-2">Chat ID</th>
+                            <th class="pb-3 px-2">الحالة</th>
+                            <th class="pb-3 px-2 text-center">الإجراءات والتحكم</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="divide-y divide-gray-800/60">
                         {% for sub in subscribers %}
-                        <tr class="border-b border-gray-700/50">
-                            <td class="py-3">{{ sub.name }}</td>
-                            <td class="py-3 text-amber-300">{{ sub.chat_id }}</td>
-                            <td class="py-3 text-emerald-400 font-bold">نشط ✅</td>
-                            <td class="py-3 text-center">
+                        <tr>
+                            <td class="py-3 px-2 font-medium">{{ sub.name }}</td>
+                            <td class="py-3 px-2 text-amber-300 font-mono">{{ sub.chat_id }}</td>
+                            <td class="py-3 px-2 text-emerald-400 font-bold">نشط ✅</td>
+                            <td class="py-3 px-2 text-center">
                                 <form action="/delete-user" method="POST" onsubmit="return confirm('هل أنت متأكد من حذف هذا المشترك نهائياً؟');" style="display:inline;">
                                     <input type="hidden" name="chat_id" value="{{ sub.chat_id }}">
-                                    <button type="submit" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded-lg text-sm transition shadow">حذف 🗑️</button>
+                                    <button type="submit" class="bg-rose-600/80 hover:bg-rose-600 text-white px-3 py-1.5 rounded-lg text-sm transition shadow cursor-pointer">حذف 🗑️</button>
                                 </form>
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="4" class="text-center py-4 text-gray-500">لا يوجد مشتركين مسجلين حالياً.</td>
+                            <td colspan="4" class="text-center py-6 text-gray-500">لا يوجد مشتركين مسجلين حالياً.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -139,7 +175,8 @@ async def dashboard(request: Request):
     html_content = template.render(
         subscribers=subscribers, 
         markets=markets, 
-        auto_running=auto_alert_status["running"]
+        auto_running=auto_alert_status["running"],
+        creator_handle=get_creator_handle()
     )
     return HTMLResponse(content=html_content)
 
@@ -147,6 +184,11 @@ async def dashboard(request: Request):
 async def add_user(name: str = Form(...), chat_id: str = Form(...)):
     add_subscriber(name, chat_id)
     return HTMLResponse(content="<script>alert('تم إضافة المشترك بنجاح!'); window.location.href='/';</script>")
+
+@app.post("/update-creator")
+async def update_creator(creator: str = Form(...)):
+    set_creator_handle(creator)
+    return HTMLResponse(content="<script>alert('تم تحديث حساب المتابعة بنجاح!'); window.location.href='/';</script>")
 
 @app.post("/delete-user")
 async def delete_user(chat_id: str = Form(...)):
@@ -174,6 +216,7 @@ async def run_analysis(symbol: str = Form(...)):
 @app.post("/toggle-auto")
 async def toggle_auto():
     auto_alert_status["running"] = not auto_alert_status["running"]
+    set_bot_status(auto_alert_status["running"])
     if auto_alert_status["running"]:
         asyncio.create_task(background_auto_alerter())
     return HTMLResponse(content="<script>window.location.href='/';</script>")
@@ -190,9 +233,8 @@ def execute_market_analysis_and_notify(symbol):
     pattern = latest.get('detected_pattern', 'استقرار سعري')
     support = latest.get('support_level', price * 0.98)
     resistance = latest.get('resistance_level', price * 1.02)
-    asset_type = asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
+    asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
 
-    # 🧠 خوارزمية الذكاء الاصطناعي الخبير للتحليل العبقرى
     if rsi < 38 or "Hammer" in pattern or "Bullish" in pattern:
         decision = "🟢 توصية شراء استراتيجية (STRONG BUY)"
         ai_reason = "رصد تشبع بيعي حاد مع ارتداد السعر من مستويات الدعم الحيوية وسط تدفقات شرائية مؤسسية."
@@ -209,6 +251,9 @@ def execute_market_analysis_and_notify(symbol):
     daily_view = "🟢 صاعد ومستقر" if price > sma20 else "🔴 تحت ضغط بيعي مؤقت"
     weekly_view = "⭐ فرصة تجميع استثماري قوية للمدى المتوسط"
     monthly_view = "💎 نظرة هيكلية إيجابية تدعم الاستثمار طويل الأجل"
+
+    creator = get_creator_handle()
+    creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
 
     report = (
         f"🌐 *منصة سومر الذكية - تقرير مباشر*\n\n"
@@ -229,21 +274,9 @@ def execute_market_analysis_and_notify(symbol):
         f"📈 *قراءات المؤشرات والشموع اليابانية الحية:*\n"
         f"• *مؤشر القوة النسبية RSI(14):* `{rsi:.2f}`\n"
         f"• *النموذج الفني المرصود:* `{pattern}`\n\n"
-        f"👑 *نصيحة الخبير الآلي:* \n"
-        f"إدارة رأس المال هي سر الاستدامة. لا تخصص أكثر من 3% من محفظتك للصفقة الواحدة، واجعل التزامك بالخطة صارماً لتحقيق أقصى عائد استثماري ممكن."
+        f"👑 *للتواصل والمتابعة الشخصية:* \n"
+        f"[{creator}]({creator_link})"
     )
-
-    subscribers = get_all_subscribers()
-    for chat_id in subscribers:
-        send_telegram_photo_and_report(chat_id, report, image_path)
-        
-    if image_path and os.path.exists(image_path):
-        try:
-            os.remove(image_path)
-        except:
-            pass
-            
-    return True
 
     subscribers = get_all_subscribers()
     for chat_id in subscribers:
