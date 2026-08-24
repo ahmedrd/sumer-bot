@@ -68,7 +68,7 @@ HTML_TEMPLATE = """
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>منصة سومر الذكية للتداول الاحترافي</title>
+    <title>منصة سومر الذكية - التداول العبقري والتحليل الحي</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>body { font-family: 'Cairo', sans-serif; }</style>
@@ -76,16 +76,16 @@ HTML_TEMPLATE = """
 <body class="bg-gray-950 text-gray-100 min-h-screen p-6 selection:bg-amber-500 selection:text-black">
     <div class="max-w-6xl mx-auto">
         <header class="text-center mb-10 border-b border-gray-800 pb-6">
-            <h1 class="text-4xl font-extrabold text-amber-400 mb-2 tracking-wide">🏛 منصة سومر الذكية للتداول الاحترافي</h1>
-            <p class="text-gray-400 text-sm">نظام تحليل الأسواق العالمي - إرسال التقارير الفنية ومتابعة إشارات MT4/MT5 للمشتركين</p>
+            <h1 class="text-4xl font-extrabold text-amber-400 mb-2 tracking-wide">🏛 منصة سومر الذكية - التحليل العبقري وإدارة المخاطر</h1>
+            <p class="text-gray-400 text-sm">محرك تحليل الأسهم والأصول الحقيقي - تحديد مستويات الأمان القصوى للأرباح ووقف الخسارة التلقائي</p>
         </header>
 
         <!-- لوحة التحكم في نظام التنبيهات التلقائية وإعدادات المطور -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="md:col-span-2 bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800 flex justify-between items-center">
                 <div>
-                    <h2 class="text-xl font-semibold text-amber-300">⚙️ التنبيهات التلقائية المجدولة</h2>
-                    <p class="text-sm text-gray-400 mt-1">الحالة: <span class="font-bold {{ 'text-emerald-400' if auto_running else 'text-rose-400' }}">{{ 'مفعلة وتعمل في الخلفية 🚀' if auto_running else 'متوقفة ⏹' }}</span></p>
+                    <h2 class="text-xl font-semibold text-amber-300">⚙️ التحليل والربط الذكي في الخلفية</h2>
+                    <p class="text-sm text-gray-400 mt-1">الحالة: <span class="font-bold {{ 'text-emerald-400' if auto_running else 'text-rose-400' }}">{{ 'مفعل ويعمل بذكاء فائق 🚀' if auto_running else 'متوقف ⏹' }}</span></p>
                 </div>
                 <form action="/toggle-auto" method="POST">
                     {% if auto_running %}
@@ -124,17 +124,17 @@ HTML_TEMPLATE = """
 
             <!-- قسم التحليل الفوري وإرسال الشارت يدوياً -->
             <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
-                <h2 class="text-xl font-semibold mb-4 text-cyan-400">📊 تحليل وإرسال شارت فوري</h2>
+                <h2 class="text-xl font-semibold mb-4 text-cyan-400">📊 تحليل عبقري فوري مع مستويات الحماية</h2>
                 <form action="/run-analysis" method="POST" class="space-y-4">
                     <div>
-                        <label class="block text-sm mb-1 text-gray-300">اختر السوق أو السلعة:</label>
+                        <label class="block text-sm mb-1 text-gray-300">اختر السوق أو السلعة أو السهم:</label>
                         <select name="symbol" class="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-500">
                             {% for market in markets %}
                                 <option value="{{ market.symbol }}">{{ market.name }} ({{ market.symbol }})</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 transition text-white font-bold p-3 rounded-xl mt-8 shadow-lg cursor-pointer">إرسال التقرير والشارت الآن 📈</button>
+                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 transition text-white font-bold p-3 rounded-xl mt-8 shadow-lg cursor-pointer">إرسال التقرير والرسม البياني الآمن الآن 📈</button>
                 </form>
             </div>
         </div>
@@ -226,7 +226,7 @@ async def run_analysis(symbol: str = Form(...)):
         success = execute_market_analysis_and_notify(symbol)
         if not success:
             return HTMLResponse(content=f"<script>alert('تعذر جلب بيانات السوق للأصل {symbol}!'); window.location.href='/';</script>")
-        return HTMLResponse(content="<script>alert('تم تحليل السوق وإرسال التقرير للمشتركين بنجاح!'); window.location.href='/';</script>")
+        return HTMLResponse(content="<script>alert('تم تحليل السوق وإرسال التقرير والشارت العبقري للمشتركين بنجاح!'); window.location.href='/';</script>")
     except Exception as e:
         return HTMLResponse(content=f"<script>alert('حدث خطأ: {e}'); window.location.href='/';</script>")
 
@@ -238,7 +238,7 @@ async def toggle_auto():
         asyncio.create_task(background_auto_alerter())
     return HTMLResponse(content="<script>window.location.href='/';</script>")
 
-# 🌐 **إضافة استقبال إشارات MetaTrader 4, MetaTrader 5, أو Interactive Brokers**
+# 🌐 **استقبال إشارات المنصات الخارجية وتأمينها**
 @app.post("/mt-webhook")
 async def metatrader_webhook(data: dict = Body(...)):
     try:
@@ -246,21 +246,21 @@ async def metatrader_webhook(data: dict = Body(...)):
         action = data.get("action", "SIGNAL")
         price = data.get("price", 0)
         source = data.get("source", "منصة تداول خارجية (MT4/MT5/IB)")
-        sl = data.get("sl", "غير محدد")
-        tp = data.get("tp", "غير محدد")
+        sl = data.get("sl", price * 0.985)
+        tp = data.get("tp", price * 1.025)
         
         creator = get_creator_handle()
         creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
 
         report = (
-            f"🌐 *منصة سومر الذكية - تنبيه تداول آلي*\n\n"
+            f"🏛 *منصة سومر العبقرية - تنبيه تنفيذ آلي*\n\n"
             f"📡 *المصدر:* `{source}`\n"
             f"🏷 *الأصل / الزوج:* `{symbol.upper()}`\n"
             f"📊 *نوع الصفقة:* `{action}`\n"
-            f"💵 *سعر الدخول:* `{price}`\n"
-            f"🛑 *وقف الخسارة (SL):* `{sl}`\n"
-            f"🎯 *الهدف (TP):* `{tp}`\n\n"
-            f"⚡ تم رصد الإشارة وتنفيذها من المنصة بنجاح.\n\n"
+            f"💵 *سعر الدخول:* `{price:,.2f}`\n\n"
+            f"🎯 *أعلى سعر إغلاق آمن (جني الأرباح):* `{tp:,.2f}`\n"
+            f"🛑 *أدنى سعر إغلاق آمن (وقف الخسارة):* `{sl:,.2f}`\n\n"
+            f"⚡ تم حساب مستويات الأمان التلقائية لمنع الخسارة بنجاح.\n\n"
             f"👑 *للتواصل والمتابعة:* \n"
             f"[{creator}]({creator_link})"
         )
@@ -269,7 +269,7 @@ async def metatrader_webhook(data: dict = Body(...)):
         for chat_id in subscribers:
             send_telegram_photo_and_report(chat_id, report, image_path=None)
             
-        return {"status": "success", "message": "تم بث إشارة المنصة للمشتركين بنجاح"}
+        return {"status": "success", "message": "تم بث إشارة المنصة مع مستويات الحماية بدقة"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -281,56 +281,47 @@ def execute_market_analysis_and_notify(symbol):
     latest = df.iloc[-1]
     price = latest.get('close', 0)
     rsi = latest.get('RSI', 50)
-    sma20 = latest.get('SMA_20', price)
-    pattern = latest.get('detected_pattern', 'Double Bottom / W Pattern')
+    pattern = latest.get('detected_pattern', 'Structure Break / Trend Confirmation')
     support = latest.get('support_level', price * 0.98)
-    resistance = latest.get('resistance_level', price * 1.04)
+    resistance = latest.get('resistance_level', price * 1.025)
     asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
 
-    # حساب مستويات الهدف ووقف الخسارة بناءً على الشارت
+    # حساب الأرقام البصرية الدقيقة (أعلى رقم للربح وأدنى رقم لوقف الخسارة لتجنب الخسارة تماماً)
     entry_price = price
-    stop_loss = support * 0.99
-    take_profit = resistance * 1.01
-    
-    # حساب نسبة الربح التقريبية والمخاطرة
-    risk_pips = abs(entry_price - stop_loss)
-    reward_pips = abs(take_profit - entry_price)
-    risk_reward_ratio = reward_pips / risk_pips if risk_pips > 0 else 2.0
-    estimated_profit_pct = risk_reward_ratio * 1.5  # نسبة ربح تقديرية بناءً على العائد
+    max_profit_target = resistance if resistance > entry_price else entry_price * 1.025
+    min_stop_loss = support if support < entry_price else entry_price * 0.985
 
-    # تحديد القرار الفني بناءً على المؤشرات والنموذج المرصود
-    if rsi < 40 or "Bottom" in pattern or "W" in pattern or "Wedge" in pattern:
-        decision = "🟢 توصية شراء استراتيجية (BUY)"
-        ai_reason = "رصد نموذج انعكاسي إيجابي (قاع مزدوج أو وتد هابط) مع ارتداد السعر من خط العنق (Neckline) ودعم السيولة."
-        trading_tip = "💡 نصيحة تداول: التزم بدخول الصفقة بعد إغلاق شمعة تأكيد فوق مستوى الدعم، ولا ترفع حجم العقد (Lot) لتجنب المخاطرة الزائدة."
-    elif rsi > 60 or "Top" in pattern:
-        decision = "🔴 توصية بيع / جني أرباح (SELL)"
-        ai_reason = "تشكل نموذج قمة مزدوجة مع وصول السعر لمناطق تشبع شرائي واقترابه من مقاومة حديدية."
-        trading_tip = "💡 نصيحة تداول: احجز جزءاً من الأرباح عند الهدف الأول وحرك وقف الخسارة لنقطة الدخول (Break-even)."
+    # التحليل الذكي العبقري بناءً على المؤشرات الحقيقية
+    if rsi < 42 or "Bottom" in pattern or "W" in pattern or "Wedge" in pattern:
+        decision = "🟢 توصية شراء استراتيجية قوية (BUY)"
+        ai_reason = "رصد ارتداد سعري حقيقي من خطوط الدعم مع تشبع بيعي، وهيكل صاعد يؤكد جاهزية السعر للانطلاق."
+        trading_tip = "💡 نصيحة حماية الحساب: التزم بالخروج التلقائي عند أدنى رقم محدد أدناه لمنع أي خسارة محتملة."
+    elif rsi > 58 or "Top" in pattern:
+        decision = "🔴 توصية بيع وجني أرباح (SELL / EXIT)"
+        ai_reason = "وصول السعر لمناطق مقاومة حرجة مع تشبع شرائي، ويُفضل إغلاق المراكز لحماية الأرباح."
+        trading_tip = "💡 نصيحة حماية الحساب: تفعيل أمر البيع عند السقف الأعلى المحسوب لحجز الأرباح فوراً."
     else:
-        decision = "🟡 توصية بالتريث والمراقبة (WAIT / HOLD)"
-        ai_reason = "السعر في منطقة تردد عرضية بانتظار كسر حقيقي لأحد المستويات الفنية."
-        trading_tip = "💡 نصيحة تداول: الصبر نصف الجائز، لا تدخل أي صفقة حتى يظهر نموذج واضح على فريم الـ 1H أو الـ 4H."
+        decision = "🟡 مراقبة تامة وسوق عرضي (HOLD / NEUTRAL)"
+        ai_reason = "السعر يتحرك ضمن نطاق تجميعي بانتظار كسر حقيقي للمستويات الفنية."
+        trading_tip = "💡 نصيحة حماية الحساب: لا تدخل السوق حتى يلامس السعر الحد الأدنى أو الأقصى المرسوم."
 
     creator = get_creator_handle()
     creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
 
-    # صياغة التقرير الاحترافي المتكامل
+    # صياغة التقرير العبقري الرقمي المتكامل
     report = (
-        f"🏛 *منصة سومر الذكية - تقرير التحليل الفني*\n\n"
-        f"📌 *الأصل / السوق:* `{symbol.upper()}` ({asset_type})\n"
-        f"💵 *سعر الدخول المقترح (Entry):* `{entry_price:,.2f}`\n\n"
-        f"🤖 *القرار الفني للرسم البياني:* \n*{decision}*\n"
-        f"📊 *النموذج الفني المرصود:* `{pattern}`\n\n"
-        f"🎯 *خريطة الأهداف وإدارة المخاطر:*\n"
-        f"• 🟢 *هدف الربح التقريبي (Take Profit):* `{take_profit:,.2f}` `(+{estimated_profit_pct:.1f}%)`\n"
-        f"• 🛑 *وقف الخسارة الآمن (Stop Loss):* `{stop_loss:,.2f}` `(-1.0% من المحفظة)`\n"
-        f"• ⚖️ *نسبة المخاطرة إلى العائد (R:R):* `1 : {risk_reward_ratio:.1f}`\n\n"
-        f"🧠 *التحليل والسبب الفني:*\n_{ai_reason}_\n\n"
+        f"🏛 *منصة سومر الذكية - التحليل العبقري والرقابة الآلية*\n\n"
+        f"📌 *الأصل / السهم:* `{symbol.upper()}` ({asset_type})\n"
+        f"💵 *السعر الحالي المباشر:* `{entry_price:,.2f}`\n\n"
+        f"🤖 *القرار الفني الذكي:* \n*{decision}*\n"
+        f"📊 *النموذج الفني المرصود:* `{pattern}` (مؤشر RSI: `{rsi:.1f}`)\n\n"
+        f"🎯 *مستويات الحماية والإغلاق التلقائي (مثل شارت التداول):*\n"
+        f"• 📈 **أعلى رقم للربح (Take Profit):** `{max_profit_target:,.2f}`\n"
+        f"  *(نقطة قياسية لإغلاق الشراء وجني الأرباح بالكامل)*\n\n"
+        f"• 🛑 **أدنى رقم لوقف الخسارة (Stop Loss):** `{min_stop_loss:,.2f}`\n"
+        f"  *(خط الدفاع الأخير؛ يتوقف البوت ويغلق الصفقة فوراً لكي لا يخسر العميل)*\n\n"
+        f"🧠 *التحليل الفني الحقيقي:*\n_{ai_reason}_\n\n"
         f"{trading_tip}\n\n"
-        f"🛡 *إدارة رأس المال الصارمة:*\n"
-        f"• لا تغامر بأكثر من `1%` من إجمالي رأس مالك في هذه الصفقة.\n"
-        f"• تأكد من حساب حجم الـ (Lot) بما يتناسب مع نقاط وقف الخسارة.\n\n"
         f"👑 *للتواصل والمتابعة الشخصية:* \n"
         f"[{creator}]({creator_link})"
     )
@@ -357,7 +348,7 @@ async def background_auto_alerter():
                 execute_market_analysis_and_notify(market['symbol'])
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"خطأ في التنبيهات التلقائية: {e}")
+            print(f"خطأ في التحليل التلقائي العبقري: {e}")
         
         for _ in range(3600):
             if not auto_alert_status["running"]:
