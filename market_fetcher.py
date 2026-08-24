@@ -53,8 +53,9 @@ def get_market_data(symbol, interval="1h", limit=50):
     df['SMA_50'] = df['close'].rolling(window=50).mean()
     df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
 
-    df.fillna(method='bfill', inplace=True)
-    df.fillna(50, inplace=True)
+    # التحديث المتوافق مع الإصدارات الحديثة لـ Pandas
+    df = df.bfill().ffill()
+    df['RSI'] = df['RSI'].fillna(50)
 
     last_row = df.iloc[-1]
     prev_row = df.iloc[-2] if len(df) > 1 else last_row
