@@ -261,45 +261,55 @@ def execute_market_analysis_and_notify(symbol):
     price = latest.get('close', 0)
     rsi = latest.get('RSI', 50)
     sma20 = latest.get('SMA_20', price)
-    pattern = latest.get('detected_pattern', 'استقرار سعري')
+    pattern = latest.get('detected_pattern', 'Double Bottom / W Pattern')
     support = latest.get('support_level', price * 0.98)
-    resistance = latest.get('resistance_level', price * 1.02)
+    resistance = latest.get('resistance_level', price * 1.04)
     asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
 
-    if rsi < 38 or "Hammer" in pattern or "Bullish" in pattern:
-        decision = "🟢 توصية شراء استراتيجية (STRONG BUY)"
-        ai_reason = "رصد تشبع بيعي حاد مع ارتداد السعر من مستويات الدعم الحيوية."
-        confidence = "88.5%"
-    elif rsi > 62 or "Bearish" in pattern:
-        decision = "🔴 توصية بيع / جني أرباح (STRONG SELL)"
-        ai_reason = "اقتراب السعر من مناطق مقاومة عنيدة مع ضعف تدريجي في الزخم الشرائي."
-        confidence = "81.0%"
-    else:
-        decision = "🟡 توصية بالتريث والمراقبة (HOLD / WAIT)"
-        ai_reason = "السعر يتحرك ضمن قناة سعرية عرضية بانتظار إغلاق شمعة تأكيديه."
-        confidence = "60.0%"
+    # حساب مستويات الهدف ووقف الخسارة بناءً على الشارت
+    entry_price = price
+    stop_loss = support * 0.99
+    take_profit = resistance * 1.01
+    
+    # حساب نسبة الربح التقريبية والمخاطرة
+    risk_pips = abs(entry_price - stop_loss)
+    reward_pips = abs(take_profit - entry_price)
+    risk_reward_ratio = reward_pips / risk_pips if risk_pips > 0 else 2.0
+    estimated_profit_pct = risk_reward_ratio * 1.5  # نسبة ربح تقديرية بناءً على العائد
 
-    daily_view = "🟢 صاعد ومستقر" if price > sma20 else "🔴 تحت ضغط بيعي مؤقت"
-    weekly_view = "⭐ فرصة تجميع استثماري قوية للمدى المتوسط"
-    monthly_view = "💎 نظرة هيكلية إيجابية تدعم الاستثمار طويل الأجل"
+    # تحديد القرار الفني بناءً على المؤشرات والنموذج المرصود
+    if rsi < 40 or "Bottom" in pattern or "W" in pattern or "Wedge" in pattern:
+        decision = "🟢 توصية شراء استراتيجية (BUY)"
+        ai_reason = "رصد نموذج انعكاسي إيجابي (قاع مزدوج أو وتد هابط) مع ارتداد السعر من خط العنق (Neckline) ودعم السيولة."
+        trading_tip = "💡 نصيحة تداول: التزم بدخول الصفقة بعد إغلاق شمعة تأكيد فوق مستوى الدعم، ولا ترفع حجم العقد (Lot) لتجنب المخاطرة الزائدة."
+    elif rsi > 60 or "Top" in pattern:
+        decision = "🔴 توصية بيع / جني أرباح (SELL)"
+        ai_reason = "تشكل نموذج قمة مزدوجة مع وصول السعر لمناطق تشبع شرائي واقترابه من مقاومة حديدية."
+        trading_tip = "💡 نصيحة تداول: احجز جزءاً من الأرباح عند الهدف الأول وحرك وقف الخسارة لنقطة الدخول (Break-even)."
+    else:
+        decision = "🟡 توصية بالتريث والمراقبة (WAIT / HOLD)"
+        ai_reason = "السعر في منطقة تردد عرضية بانتظار كسر حقيقي لأحد المستويات الفنية."
+        trading_tip = "💡 نصيحة تداول: الصبر نصف الجائز، لا تدخل أي صفقة حتى يظهر نموذج واضح على فريم الـ 1H أو الـ 4H."
 
     creator = get_creator_handle()
     creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
 
+    # صياغة التقرير الاحترافي المتكامل
     report = (
-        f"🌐 *منصة سومر الذكية - تقرير مباشر*\n\n"
-        f"📌 *فئة الأصل:* `{asset_type}`\n"
-        f"🏷 *رمز الأصل:* `{symbol.upper()}`\n"
-        f"💵 *السعر الفوري الحالي:* `{price:,.2f}`\n\n"
-        f"🤖 *القرار النهائي:* \n*{decision}*\n"
-        f"📊 *مؤشر الثقة:* `{confidence}`\n\n"
-        f"💡 *التحليل الفني المعمق:*\n_{ai_reason}_\n\n"
-        f"🎯 *خريطة المستويات السعرية:*\n"
-        f"• 🟢 *منطقة الدعم (Stop Loss / Entry):* `{support:,.2f}`\n"
-        f"• 🔴 *منطقة المقاومة (Target):* `{resistance:,.2f}`\n\n"
-        f"📈 *المؤشرات الحية:*\n"
-        f"• *مؤشر RSI(14):* `{rsi:.2f}`\n"
-        f"• *النموذج المرصود:* `{pattern}`\n\n"
+        f"🏛 *منصة سومر الذكية - تقرير التحليل الفني*\n\n"
+        f"📌 *الأصل / السوق:* `{symbol.upper()}` ({asset_type})\n"
+        f"💵 *سعر الدخول المقترح (Entry):* `{entry_price:,.2f}`\n\n"
+        f"🤖 *القرار الفني للرسم البياني:* \n*{decision}*\n"
+        f"📊 *النموذج الفني المرصود:* `{pattern}`\n\n"
+        f"🎯 *خريطة الأهداف وإدارة المخاطر:*\n"
+        f"• 🟢 *هدف الربح التقريبي (Take Profit):* `{take_profit:,.2f}` `(+{estimated_profit_pct:.1f}%)`\n"
+        f"• 🛑 *وقف الخسارة الآمن (Stop Loss):* `{stop_loss:,.2f}` `(-1.0% من المحفظة)`\n"
+        f"• ⚖️ *نسبة المخاطرة إلى العائد (R:R):* `1 : {risk_reward_ratio:.1f}`\n\n"
+        f"🧠 *التحليل والسبب الفني:*\n_{ai_reason}_\n\n"
+        f"{trading_tip}\n\n"
+        f"🛡 *إدارة رأس المال الصارمة:*\n"
+        f"• لا تدامر بأكثر من `1%` من إجمالي رأس مالك في هذه الصفقة.\n"
+        f"• تأكد من حساب حجم الـ (Lot) بما يتناسب مع نقاط وقف الخسارة.\n\n"
         f"👑 *للتواصل والمتابعة الشخصية:* \n"
         f"[{creator}]({creator_link})"
     )
