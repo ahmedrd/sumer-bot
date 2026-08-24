@@ -101,7 +101,7 @@ HTML_TEMPLATE = """
     <div class="max-w-6xl mx-auto">
         <header class="text-center mb-10 border-b border-gray-800 pb-6">
             <h1 class="text-4xl font-extrabold text-amber-400 mb-2 tracking-wide">🏛 منصة سومر الذكية - التحليل العبقري وإدارة المخاطر</h1>
-            <p class="text-gray-400 text-sm">محرك تحليل الأسهم والأصول الحقيقي - تحديد مستويات الأمان القصوى للأرباح ووقف الخسارة التلقائي</p>
+            <p class="text-gray-400 text-sm">محرك تحليل الأسهم والأصول الحقيقي - معيار ATR العالمي الدقيق لتحديد الأرباح ووقف الخسارة</p>
         </header>
 
         <!-- لوحة التحكم في نظام التنبيهات التلقائية وإعدادات المطور -->
@@ -290,8 +290,11 @@ async def metatrader_webhook(data: dict = Body(...)):
         action = data.get("action", "SIGNAL")
         price = data.get("price", 0)
         source = data.get("source", "منصة تداول خارجية (MT4/MT5/IB)")
-        sl = data.get("sl", price * 0.985)
-        tp = data.get("tp", price * 1.025)
+        
+        # حساب مرن ومتناسق لمعرفات التداول بناءً على السعر الحالي
+        dynamic_buffer = price * 0.015
+        sl = data.get("sl", price - dynamic_buffer)
+        tp = data.get("tp", price + (dynamic_buffer * 1.5))
         
         creator = get_creator_handle()
         creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
@@ -329,13 +332,29 @@ def execute_market_analysis_and_notify(symbol):
         price = latest.get('close', 0)
         rsi = latest.get('RSI', 50)
         pattern = latest.get('detected_pattern', 'Structure Break / Trend Confirmation')
-        support = latest.get('support_level', price * 0.98)
-        resistance = latest.get('resistance_level', price * 1.025)
-        asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
+        
+        # استخراج مستويات الدعم والمقاومة الفنية الحقيقية من المولد أو حسابها عبر معيار ATR المتقدم
+        atr = latest.get('ATR', latest.get('atr', price * 0.015))  # قراءة مؤشر التذبذب الحقيقي إن وجد
+        support_extracted = latest.get('support_level', 0)
+        resistance_extracted = latest.get('resistance_level', 0)
 
-        entry_price = price
-        max_profit_target = resistance if resistance > entry_price else entry_price * 1.025
-        min_stop_loss = support if support < entry_price else entry_price * 0.985
+        # حسابات الأمان المتقدمة والدقيقة (المطابقة للأنظمة العالمية)
+        # اعتماد الدعم والمقاومة الحقيقيين إذا كانا منطقيين، وإلا يتم الاحتساب بناءً على التذبذب الحقيقي (ATR)
+        if support_extracted > 0 and support_extracted < price:
+            min_stop_loss = support_extracted - (atr * 0.5)
+        else:
+            min_stop_loss = price - (atr * 1.5)  # وقف الخسارة يعتمد على 1.5 ضعف التذبذب
+
+        if resistance_extracted > 0 and resistance_extracted > price:
+            max_profit_target = resistance_extracted + (atr * 0.5)
+        else:
+            max_profit_target = price + (atr * 2.5)  # هدف الربح بعائد لمخاطرة يتجاوز 1.5 إلى 2
+
+        # تأمين عدم خلو الأرقام أو انقلابها
+        if min_stop_loss >= price:
+            min_stop_loss = price * 0.985
+        if max_profit_target <= price:
+            max_profit_target = price * 1.025
 
         if rsi < 42 or "Bottom" in pattern or "W" in pattern or "Wedge" in pattern:
             decision = "🟢 توصية شراء استراتيجية قوية (BUY)"
@@ -355,11 +374,11 @@ def execute_market_analysis_and_notify(symbol):
 
         report = (
             f"🏛 *منصة سومر الذكية - التحليل العبقري والرقابة الآلية*\n\n"
-            f"📌 *الأصل / السهم:* `{symbol.upper()}` ({asset_type})\n"
-            f"💵 *السعر الحالي المباشر:* `{entry_price:,.2f}`\n\n"
+            f"📌 *الأصل / السهم:* `{symbol.upper()}`\n"
+            f"💵 *السعر الحالي المباشر:* `{price:,.2f}`\n\n"
             f"🤖 *القرار الفني الذكي:* \n*{decision}*\n"
             f"📊 *النموذج الفني المرصود:* `{pattern}` (مؤشر RSI: `{rsi:.1f}`)\n\n"
-            f"🎯 *مستويات الحماية والإغلاق التلقائي:*\n"
+            f"🎯 *مستويات الحماية والإغلاق التلقائي (معيار ATR العالمي):*\n"
             f"• 📈 **أعلى رقم للربح (Take Profit):** `{max_profit_target:,.2f}`\n"
             f"• 🛑 **أدنى رقم لوقف الخسارة (Stop Loss):** `{min_stop_loss:,.2f}`\n\n"
             f"🧠 *التحليل الفني الحقيقي:*\n_{ai_reason}_\n\n"
