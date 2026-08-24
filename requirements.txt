@@ -1,2 +1,8 @@
 fastapi
 uvicorn
+jinja2
+requests
+pandas
+numpy
+matplotlib
+mplfinance
