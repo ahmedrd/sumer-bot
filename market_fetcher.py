@@ -23,7 +23,7 @@ def get_market_data(symbol):
     try:
         symbol = symbol.upper()
         
-        # محاكاة توليد بيانات حية واقعية بناءً على طبيعة الأصل (تذبذب الذهب وناسداك يختلف عن الفوركس)
+        # محاكاة توليد بيانات حية واقعية بناءً على طبيعة الأصل
         np.random.seed(None)
         
         base_price = 1.0850  # افتراضي للفوركس
@@ -53,8 +53,8 @@ def get_market_data(symbol):
         df['RSI'] = 100 - (100 / (1 + rs))
         df['RSI'] = df['RSI'].fillna(50)
         
-        # تحديد الدعم والمقاومة بناءً على الشمعة الأخيرة
-        latest_close = df['iloc'][-1] if hasattr(df, 'iloc') else df['close'].iloc[-1]
+        # التصحيح: استخراج السعر الأخير والتذبذب بالطريقة الصحيحة دون أخطاء
+        latest_close = df['close'].iloc[-1]
         latest_atr = df['ATR'].iloc[-1]
         
         df.loc[df.index[-1], 'support_level'] = latest_close - (latest_atr * 1.2)
@@ -66,7 +66,7 @@ def get_market_data(symbol):
             "Consolidation Range / تذبذب عرضي آمن"
         ])
 
-        return df, None  # لا توجد صورة محلية، سيتم إرسال التقرير النصي والبياني بدقة
+        return df, None
     except Exception as e:
-        print(f"خطأ في جلب بيانات السوق للأصل {symbol}: {e}")
+        print(f"❌ خطأ في جلب بيانات السوق للأصل {symbol}: {e}")
         return None, None
