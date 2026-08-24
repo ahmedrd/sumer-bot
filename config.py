@@ -5,5 +5,5 @@ SYMBOL = "BTCUSDT"              # العملة المستهدفة (بيتكوي�
 INTERVAL = "1h"                 # الإطار الزمني للشموع (ساعة واحدة)
 
 # بيانات بوت تليجرام الخاص بك (تم إدراج التوكن الخاص بك)
-TELEGRAM_TOKEN = "8642755647:AAEaUew8C4hxcH93g2tdL2K58jijTJsaaTM"
-TELEGRAM_CHAT_ID = "96609609"
+TELEGRAM_TOKEN = "xxxxxxx:xxxxxxxxx"
+TELEGRAM_CHAT_ID = "xxxxxxx"
