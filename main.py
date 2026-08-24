@@ -13,6 +13,26 @@ app = FastAPI()
 
 STATE_FILE = "bot_state.txt"
 CREATOR_FILE = "creator_handle.txt"
+DB_FILE = "sumer_schedules.db"
+
+def init_schedules_db():
+    """إنشاء جدول قاعدة البيانات لتخزين التنبيهات المجدولة والصمود أمام إعادة التشغيل"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS scheduled_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT,
+            condition_type TEXT,
+            target_value REAL,
+            is_active INTEGER DEFAULT 1
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# تهيئة قاعدة البيانات عند الإقلاع
+init_schedules_db()
 
 def get_bot_status():
     if os.path.exists(STATE_FILE):
@@ -39,6 +59,7 @@ auto_alert_status = {"running": get_bot_status()}
 @app.on_event("startup")
 def startup_event():
     init_db()
+    init_schedules_db()
     if auto_alert_status["running"]:
         asyncio.create_task(background_auto_alerter())
 
@@ -289,7 +310,7 @@ def execute_market_analysis_and_notify(symbol):
     else:
         decision = "🟡 توصية بالتريث والمراقبة (WAIT / HOLD)"
         ai_reason = "السعر في منطقة تردد عرضية بانتظار كسر حقيقي لأحد المستويات الفنية."
-        trading_tip = "💡 نصيحة تداول: الصبر نصف الجائز، لا تدخل أي صفقة حتى يظهر نموذج واضح على فريم الـ 1H أو الـ 4H."
+        trading_tip = "💡 نصيحة تداول: الصبر نصف الجائز، لا تدخل أي صفقة حتى يظهر نموذج واضح على فريم الـ 1H أو الـ 4H."
 
     creator = get_creator_handle()
     creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
