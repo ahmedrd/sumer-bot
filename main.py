@@ -17,51 +17,70 @@ DB_FILE = "sumer_schedules.db"
 
 def init_schedules_db():
     """إنشاء جدول قاعدة البيانات لتخزين التنبيهات المجدولة والصمود أمام إعادة التشغيل"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS scheduled_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT,
-            condition_type TEXT,
-            target_value REAL,
-            is_active INTEGER DEFAULT 1
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS scheduled_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT,
+                condition_type TEXT,
+                target_value REAL,
+                is_active INTEGER DEFAULT 1
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"خطأ في إنشاء قاعدة بيانات الجدول: {e}")
 
-# تهيئة قاعدة البيانات عند الإقلاع
+# تهيئة قواعد البيانات عند الإقلاع
 init_schedules_db()
 
 def get_bot_status():
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return f.read().strip() == "True"
+        try:
+            with open(STATE_FILE, "r") as f:
+                return f.read().strip() == "True"
+        except:
+            return False
     return False
 
 def set_bot_status(status: bool):
-    with open(STATE_FILE, "w") as f:
-        f.write(str(status))
+    try:
+        with open(STATE_FILE, "w") as f:
+            f.write(str(status))
+    except Exception as e:
+        print(f"خطأ في حفظ حالة البوت: {e}")
 
 def get_creator_handle():
     if os.path.exists(CREATOR_FILE):
-        with open(CREATOR_FILE, "r") as f:
-            return f.read().strip()
+        try:
+            with open(CREATOR_FILE, "r") as f:
+                return f.read().strip()
+        except:
+            return "AhmedRadhi"
     return "AhmedRadhi"
 
 def set_creator_handle(handle: str):
-    with open(CREATOR_FILE, "w") as f:
-        f.write(handle.strip())
+    try:
+        with open(CREATOR_FILE, "w") as f:
+            f.write(handle.strip())
+    except Exception as e:
+        print(f"خطأ في حفظ معرف المطور: {e}")
 
 auto_alert_status = {"running": get_bot_status()}
+background_task_ref = None  # مرجع للحفاظ على حية المهمة في الخلفية
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
+    global background_task_ref
     init_db()
     init_schedules_db()
+    print("🚀 تم إقلاع منصة سومر الذكية بنجاح...")
     if auto_alert_status["running"]:
-        asyncio.create_task(background_auto_alerter())
+        print("⚡ التشغيل التلقائي مفعل مسبقاً، يتم إطلاقه في الخلفية الآن...")
+        background_task_ref = asyncio.create_task(background_auto_alerter())
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -134,7 +153,7 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
                     </div>
-                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 transition text-white font-bold p-3 rounded-xl mt-8 shadow-lg cursor-pointer">إرسال التقرير والرسม البياني الآمن الآن 📈</button>
+                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 transition text-white font-bold p-3 rounded-xl mt-8 shadow-lg cursor-pointer">إرسال التقرير والرسوم البيانية الآمن الآن 📈</button>
                 </form>
             </div>
         </div>
@@ -232,13 +251,21 @@ async def run_analysis(symbol: str = Form(...)):
 
 @app.post("/toggle-auto")
 async def toggle_auto():
+    global background_task_ref
     auto_alert_status["running"] = not auto_alert_status["running"]
     set_bot_status(auto_alert_status["running"])
+    
     if auto_alert_status["running"]:
-        asyncio.create_task(background_auto_alerter())
+        # بدء مهمة الخلفية وضمان حفظ المرجع لكي لا يحذفها الـ Garbage Collector
+        background_task_ref = asyncio.create_task(background_auto_alerter())
+        print("🟢 تم تشغيل نظام التحليل التلقائي في الخلفية.")
+    else:
+        print("🔴 تم إيقاف نظام التحليل التلقائي.")
+        if background_task_ref:
+            background_task_ref.cancel()
+            
     return HTMLResponse(content="<script>window.location.href='/';</script>")
 
-# 🌐 **استقبال إشارات المنصات الخارجية وتأمينها**
 @app.post("/mt-webhook")
 async def metatrader_webhook(data: dict = Body(...)):
     try:
@@ -274,82 +301,91 @@ async def metatrader_webhook(data: dict = Body(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 def execute_market_analysis_and_notify(symbol):
-    df, image_path = get_market_data(symbol)
-    if df is None or df.empty:
-        return False
-    
-    latest = df.iloc[-1]
-    price = latest.get('close', 0)
-    rsi = latest.get('RSI', 50)
-    pattern = latest.get('detected_pattern', 'Structure Break / Trend Confirmation')
-    support = latest.get('support_level', price * 0.98)
-    resistance = latest.get('resistance_level', price * 1.025)
-    asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
-
-    # حساب الأرقام البصرية الدقيقة (أعلى رقم للربح وأدنى رقم لوقف الخسارة لتجنب الخسارة تماماً)
-    entry_price = price
-    max_profit_target = resistance if resistance > entry_price else entry_price * 1.025
-    min_stop_loss = support if support < entry_price else entry_price * 0.985
-
-    # التحليل الذكي العبقري بناءً على المؤشرات الحقيقية
-    if rsi < 42 or "Bottom" in pattern or "W" in pattern or "Wedge" in pattern:
-        decision = "🟢 توصية شراء استراتيجية قوية (BUY)"
-        ai_reason = "رصد ارتداد سعري حقيقي من خطوط الدعم مع تشبع بيعي، وهيكل صاعد يؤكد جاهزية السعر للانطلاق."
-        trading_tip = "💡 نصيحة حماية الحساب: التزم بالخروج التلقائي عند أدنى رقم محدد أدناه لمنع أي خسارة محتملة."
-    elif rsi > 58 or "Top" in pattern:
-        decision = "🔴 توصية بيع وجني أرباح (SELL / EXIT)"
-        ai_reason = "وصول السعر لمناطق مقاومة حرجة مع تشبع شرائي، ويُفضل إغلاق المراكز لحماية الأرباح."
-        trading_tip = "💡 نصيحة حماية الحساب: تفعيل أمر البيع عند السقف الأعلى المحسوب لحجز الأرباح فوراً."
-    else:
-        decision = "🟡 مراقبة تامة وسوق عرضي (HOLD / NEUTRAL)"
-        ai_reason = "السعر يتحرك ضمن نطاق تجميعي بانتظار كسر حقيقي للمستويات الفنية."
-        trading_tip = "💡 نصيحة حماية الحساب: لا تدخل السوق حتى يلامس السعر الحد الأدنى أو الأقصى المرسوم."
-
-    creator = get_creator_handle()
-    creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
-
-    # صياغة التقرير العبقري الرقمي المتكامل
-    report = (
-        f"🏛 *منصة سومر الذكية - التحليل العبقري والرقابة الآلية*\n\n"
-        f"📌 *الأصل / السهم:* `{symbol.upper()}` ({asset_type})\n"
-        f"💵 *السعر الحالي المباشر:* `{entry_price:,.2f}`\n\n"
-        f"🤖 *القرار الفني الذكي:* \n*{decision}*\n"
-        f"📊 *النموذج الفني المرصود:* `{pattern}` (مؤشر RSI: `{rsi:.1f}`)\n\n"
-        f"🎯 *مستويات الحماية والإغلاق التلقائي (مثل شارت التداول):*\n"
-        f"• 📈 **أعلى رقم للربح (Take Profit):** `{max_profit_target:,.2f}`\n"
-        f"  *(نقطة قياسية لإغلاق الشراء وجني الأرباح بالكامل)*\n\n"
-        f"• 🛑 **أدنى رقم لوقف الخسارة (Stop Loss):** `{min_stop_loss:,.2f}`\n"
-        f"  *(خط الدفاع الأخير؛ يتوقف البوت ويغلق الصفقة فوراً لكي لا يخسر العميل)*\n\n"
-        f"🧠 *التحليل الفني الحقيقي:*\n_{ai_reason}_\n\n"
-        f"{trading_tip}\n\n"
-        f"👑 *للتواصل والمتابعة الشخصية:* \n"
-        f"[{creator}]({creator_link})"
-    )
-
-    subscribers = get_all_subscribers()
-    for chat_id in subscribers:
-        send_telegram_photo_and_report(chat_id, report, image_path)
+    try:
+        df, image_path = get_market_data(symbol)
+        if df is None or df.empty:
+            print(f"⚠️ تحذير: لم يتم استرجاع بيانات لـ {symbol}")
+            return False
         
-    if image_path and os.path.exists(image_path):
-        try:
-            os.remove(image_path)
-        except:
-            pass
+        latest = df.iloc[-1]
+        price = latest.get('close', 0)
+        rsi = latest.get('RSI', 50)
+        pattern = latest.get('detected_pattern', 'Structure Break / Trend Confirmation')
+        support = latest.get('support_level', price * 0.98)
+        resistance = latest.get('resistance_level', price * 1.025)
+        asset_type = latest.get('asset_type_desc', 'أصل مالي عالمي')
+
+        entry_price = price
+        max_profit_target = resistance if resistance > entry_price else entry_price * 1.025
+        min_stop_loss = support if support < entry_price else entry_price * 0.985
+
+        if rsi < 42 or "Bottom" in pattern or "W" in pattern or "Wedge" in pattern:
+            decision = "🟢 توصية شراء استراتيجية قوية (BUY)"
+            ai_reason = "رصد ارتداد سعري حقيقي من خطوط الدعم مع تشبع بيعي، وهيكل صاعد يؤكد جاهزية السعر للانطلاق."
+            trading_tip = "💡 نصيحة حماية الحساب: التزم بالخروج التلقائي عند أدنى رقم محدد أدناه لمنع أي خسارة محتملة."
+        elif rsi > 58 or "Top" in pattern:
+            decision = "🔴 توصية بيع وجني أرباح (SELL / EXIT)"
+            ai_reason = "وصول السعر لمناطق مقاومة حرجة مع تشبع شرائي، ويُفضل إغلاق المراكز لحماية الأرباح."
+            trading_tip = "💡 نصيحة حماية الحساب: تفعيل أمر البيع عند السقف الأعلى المحسوب لحجز الأرباح فوراً."
+        else:
+            decision = "🟡 مراقبة تامة وسوق عرضي (HOLD / NEUTRAL)"
+            ai_reason = "السعر يتحرك ضمن نطاق تجميعي بانتظار كسر حقيقي للمستويات الفنية."
+            trading_tip = "💡 نصيحة حماية الحساب: لا تدخل السوق حتى يلامس السعر الحد الأدنى أو الأقصى المرسوم."
+
+        creator = get_creator_handle()
+        creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
+
+        report = (
+            f"🏛 *منصة سومر الذكية - التحليل العبقري والرقابة الآلية*\n\n"
+            f"📌 *الأصل / السهم:* `{symbol.upper()}` ({asset_type})\n"
+            f"💵 *السعر الحالي المباشر:* `{entry_price:,.2f}`\n\n"
+            f"🤖 *القرار الفني الذكي:* \n*{decision}*\n"
+            f"📊 *النموذج الفني المرصود:* `{pattern}` (مؤشر RSI: `{rsi:.1f}`)\n\n"
+            f"🎯 *مستويات الحماية والإغلاق التلقائي:*\n"
+            f"• 📈 **أعلى رقم للربح (Take Profit):** `{max_profit_target:,.2f}`\n"
+            f"• 🛑 **أدنى رقم لوقف الخسارة (Stop Loss):** `{min_stop_loss:,.2f}`\n\n"
+            f"🧠 *التحليل الفني الحقيقي:*\n_{ai_reason}_\n\n"
+            f"{trading_tip}\n\n"
+            f"👑 *للتواصل والمتابعة الشخصية:* \n"
+            f"[{creator}]({creator_link})"
+        )
+
+        subscribers = get_all_subscribers()
+        for chat_id in subscribers:
+            send_telegram_photo_and_report(chat_id, report, image_path)
             
-    return True
+        if image_path and os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+            except:
+                pass
+                
+        return True
+    except Exception as e:
+        print(f"❌ خطأ أثناء تنفيذ التحليل وإرسال الإشعار لـ {symbol}: {e}")
+        return False
 
 async def background_auto_alerter():
+    """حلقة خلفية متواصلة تفحص الأسواق وتدير التحليل التلقائي دون انقطاع"""
+    print("🔄 بدأت حلقة المراقبة والتحليل الذكي في الخلفية...")
     while auto_alert_status["running"]:
         try:
             markets = get_all_markets()
-            for market in markets:
-                if not auto_alert_status["running"]:
-                    break
-                execute_market_analysis_and_notify(market['symbol'])
-                await asyncio.sleep(10)
+            if markets:
+                for market in markets:
+                    if not auto_alert_status["running"]:
+                        break
+                    symbol = market['symbol']
+                    print(f"📊 جارٍ تحليل الأصل تلقائياً: {symbol}")
+                    execute_market_analysis_and_notify(symbol)
+                    # فاصل زمني قصير بين كل سوق لكي لا يحدث ضغط على السيرفر أو تليجرام
+                    await asyncio.sleep(15)
+            else:
+                print("⚠️ لا توجد أسواق مسجلة للفحص.")
         except Exception as e:
-            print(f"خطأ في التحليل التلقائي العبقري: {e}")
+            print(f"❌ خطأ داخل حلقة التنبيهات التلقائية: {e}")
         
+        # الانتظار لمدة ساعة (3600 ثانية) مع فحص حالة التشغيل كل ثانية
         for _ in range(3600):
             if not auto_alert_status["running"]:
                 break
@@ -360,19 +396,19 @@ def send_telegram_photo_and_report(chat_id, message, image_path):
     
     if image_path and os.path.exists(image_path):
         url = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendPhoto"
-        with open(image_path, 'rb') as photo_file:
-            payload = {"chat_id": clean_chat_id, "caption": message, "parse_mode": "Markdown"}
-            files = {"photo": photo_file}
-            try:
-                response = requests.post(url, data=payload, files=files, timeout=10)
+        try:
+            with open(image_path, 'rb') as photo_file:
+                payload = {"chat_id": clean_chat_id, "caption": message, "parse_mode": "Markdown"}
+                files = {"photo": photo_file}
+                response = requests.post(url, data=payload, files=files, timeout=15)
                 if response.status_code == 200 and response.json().get("ok"):
                     return
-            except:
-                pass
+        except Exception as e:
+            print(f"⚠️ فشل إرسال الصورة عبر تليجرام: {e}")
                 
     url_msg = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
     payload_msg = {"chat_id": clean_chat_id, "text": message, "parse_mode": "Markdown"}
     try:
-        requests.post(url_msg, json=payload_msg, timeout=10)
-    except:
-        pass
+        requests.post(url_msg, json=payload_msg, timeout=15)
+    except Exception as e:
+        print(f"⚠️ فشل إرسال الرسالة النصية عبر تليجرام: {e}")
