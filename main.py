@@ -2,7 +2,7 @@ import sqlite3
 import asyncio
 import os
 import requests
-from fastapi import FastAPI, Form, Request, HTTPException
+from fastapi import FastAPI, Form, Request, Body, HTTPException
 from fastapi.responses import HTMLResponse
 import jinja2
 import config
@@ -28,7 +28,7 @@ def get_creator_handle():
     if os.path.exists(CREATOR_FILE):
         with open(CREATOR_FILE, "r") as f:
             return f.read().strip()
-    return "AhmedRadhi" # حسابك الافتراضي
+    return "AhmedRadhi"
 
 def set_creator_handle(handle: str):
     with open(CREATOR_FILE, "w") as f:
@@ -39,7 +39,6 @@ auto_alert_status = {"running": get_bot_status()}
 @app.on_event("startup")
 def startup_event():
     init_db()
-    # استئناف التشغيل في الخلفية إذا كانت الحالة مفعلة مسبقاً
     if auto_alert_status["running"]:
         asyncio.create_task(background_auto_alerter())
 
@@ -57,10 +56,10 @@ HTML_TEMPLATE = """
     <div class="max-w-6xl mx-auto">
         <header class="text-center mb-10 border-b border-gray-800 pb-6">
             <h1 class="text-4xl font-extrabold text-amber-400 mb-2 tracking-wide">🏛 منصة سومر الذكية للتداول الاحترافي</h1>
-            <p class="text-gray-400 text-sm">نظام تحليل الأسواق العالمي - إرسال التقارير الفنية المتقدمة وسكرين شوت الشارت للمشتركين</p>
+            <p class="text-gray-400 text-sm">نظام تحليل الأسواق العالمي - إرسال التقارير الفنية ومتابعة إشارات MT4/MT5 للمشتركين</p>
         </header>
 
-        <!-- لوحة التحكم في نظام التنبيهات التلقائية -->
+        <!-- لوحة التحكم في نظام التنبيهات التلقائية وإعدادات المطور -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="md:col-span-2 bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800 flex justify-between items-center">
                 <div>
@@ -76,7 +75,6 @@ HTML_TEMPLATE = """
                 </form>
             </div>
 
-            <!-- إعدادات حساب المتابع / المطور -->
             <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
                 <h3 class="text-lg font-semibold text-cyan-400 mb-2">👨‍💻 حساب المتابعة الشخصي</h3>
                 <form action="/update-creator" method="POST" class="space-y-3">
@@ -120,7 +118,7 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
-        <!-- قائمة المشتركين المسجلين مع خيارات التحكم والحذف -->
+        <!-- قائمة المشتركين المسجلين -->
         <div class="bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-800">
             <h2 class="text-xl font-semibold mb-4 text-purple-400">👥 المشتركون الحاليون ({{ subscribers|length }})</h2>
             <div class="overflow-x-auto">
@@ -168,7 +166,6 @@ async def dashboard(request: Request):
     cursor.execute("SELECT * FROM subscribers")
     subscribers = cursor.fetchall()
     conn.close()
-    
     markets = get_all_markets()
     
     template = jinja2.Template(HTML_TEMPLATE)
@@ -207,10 +204,9 @@ async def run_analysis(symbol: str = Form(...)):
     try:
         success = execute_market_analysis_and_notify(symbol)
         if not success:
-            return HTMLResponse(content=f"<script>alert('تعذر جلب بيانات السوق أو رسم الشارت للأصل {symbol}!'); window.location.href='/';</script>")
-        return HTMLResponse(content="<script>alert('تم تحليل السوق وإرسال السكرين شوت والتقرير للمشتركين بنجاح!'); window.location.href='/';</script>")
+            return HTMLResponse(content=f"<script>alert('تعذر جلب بيانات السوق للأصل {symbol}!'); window.location.href='/';</script>")
+        return HTMLResponse(content="<script>alert('تم تحليل السوق وإرسال التقرير للمشتركين بنجاح!'); window.location.href='/';</script>")
     except Exception as e:
-        print(f"❌ خطأ فادح في التنفيذ اليدوي: {e}")
         return HTMLResponse(content=f"<script>alert('حدث خطأ: {e}'); window.location.href='/';</script>")
 
 @app.post("/toggle-auto")
@@ -220,6 +216,41 @@ async def toggle_auto():
     if auto_alert_status["running"]:
         asyncio.create_task(background_auto_alerter())
     return HTMLResponse(content="<script>window.location.href='/';</script>")
+
+# 🌐 **إضافة استقبال إشارات MetaTrader 4, MetaTrader 5, أو Interactive Brokers**
+@app.post("/mt-webhook")
+async def metatrader_webhook(data: dict = Body(...)):
+    try:
+        symbol = data.get("symbol", "UNKNOWN")
+        action = data.get("action", "SIGNAL")
+        price = data.get("price", 0)
+        source = data.get("source", "منصة تداول خارجية (MT4/MT5/IB)")
+        sl = data.get("sl", "غير محدد")
+        tp = data.get("tp", "غير محدد")
+        
+        creator = get_creator_handle()
+        creator_link = f"https://t.me/{creator}" if not creator.startswith("http") else creator
+
+        report = (
+            f"🌐 *منصة سومر الذكية - تنبيه تداول آلي*\n\n"
+            f"📡 *المصدر:* `{source}`\n"
+            f"🏷 *الأصل / الزوج:* `{symbol.upper()}`\n"
+            f"📊 *نوع الصفقة:* `{action}`\n"
+            f"💵 *سعر الدخول:* `{price}`\n"
+            f"🛑 *وقف الخسارة (SL):* `{sl}`\n"
+            f"🎯 *الهدف (TP):* `{tp}`\n\n"
+            f"⚡ تم رصد الإشارة وتنفيذها من المنصة بنجاح.\n\n"
+            f"👑 *للتواصل والمتابعة:* \n"
+            f"[{creator}]({creator_link})"
+        )
+
+        subscribers = get_all_subscribers()
+        for chat_id in subscribers:
+            send_telegram_photo_and_report(chat_id, report, image_path=None)
+            
+        return {"status": "success", "message": "تم بث إشارة المنصة للمشتركين بنجاح"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def execute_market_analysis_and_notify(symbol):
     df, image_path = get_market_data(symbol)
@@ -237,15 +268,15 @@ def execute_market_analysis_and_notify(symbol):
 
     if rsi < 38 or "Hammer" in pattern or "Bullish" in pattern:
         decision = "🟢 توصية شراء استراتيجية (STRONG BUY)"
-        ai_reason = "رصد تشبع بيعي حاد مع ارتداد السعر من مستويات الدعم الحيوية وسط تدفقات شرائية مؤسسية."
+        ai_reason = "رصد تشبع بيعي حاد مع ارتداد السعر من مستويات الدعم الحيوية."
         confidence = "88.5%"
     elif rsi > 62 or "Bearish" in pattern:
         decision = "🔴 توصية بيع / جني أرباح (STRONG SELL)"
-        ai_reason = "اقتراب السعر من مناطق مقاومة عنيدة مع ضعف تدريجي في الزخم الشرائي وظهور إشارات تصريف."
+        ai_reason = "اقتراب السعر من مناطق مقاومة عنيدة مع ضعف تدريجي في الزخم الشرائي."
         confidence = "81.0%"
     else:
         decision = "🟡 توصية بالتريث والمراقبة (HOLD / WAIT)"
-        ai_reason = "السعر يتحرك ضمن قناة سعرية عرضية بانتظار إغلاق شمعة تأكيديه لاختراق أحد المستويات."
+        ai_reason = "السعر يتحرك ضمن قناة سعرية عرضية بانتظار إغلاق شمعة تأكيديه."
         confidence = "60.0%"
 
     daily_view = "🟢 صاعد ومستقر" if price > sma20 else "🔴 تحت ضغط بيعي مؤقت"
@@ -261,19 +292,14 @@ def execute_market_analysis_and_notify(symbol):
         f"🏷 *رمز الأصل:* `{symbol.upper()}`\n"
         f"💵 *السعر الفوري الحالي:* `{price:,.2f}`\n\n"
         f"🤖 *القرار النهائي:* \n*{decision}*\n"
-        f"📊 *مؤشر الثقة والاعتمادية:* `{confidence}`\n\n"
-        f"💡 *التحليل والسبب الفني المعمق:*\n_{ai_reason}_\n\n"
-        f"⏱ *تحليل النطاقات الزمنية المتعددة:*\n"
-        f"• 📈 *الصفقة اللحظية (Scalping):* نشطة ومهيأة للتنفيذ\n"
-        f"• 📅 *الاتجاه اليومي (Daily):* {daily_view}\n"
-        f"• 📆 *النظرة الأسبوعية (Weekly):* {weekly_view}\n"
-        f"• 🗓 *الرؤية الشهرية (Macro):* {monthly_view}\n\n"
-        f"🎯 *خريطة المستويات السعرية الحرجة:*\n"
-        f"• 🟢 *منطقة الدعم الذهبي (Stop Loss / Entry):* `{support:,.2f}`\n"
-        f"• 🔴 *منطقة المقاومة الحديدية (Target):* `{resistance:,.2f}`\n\n"
-        f"📈 *قراءات المؤشرات والشموع اليابانية الحية:*\n"
-        f"• *مؤشر القوة النسبية RSI(14):* `{rsi:.2f}`\n"
-        f"• *النموذج الفني المرصود:* `{pattern}`\n\n"
+        f"📊 *مؤشر الثقة:* `{confidence}`\n\n"
+        f"💡 *التحليل الفني المعمق:*\n_{ai_reason}_\n\n"
+        f"🎯 *خريطة المستويات السعرية:*\n"
+        f"• 🟢 *منطقة الدعم (Stop Loss / Entry):* `{support:,.2f}`\n"
+        f"• 🔴 *منطقة المقاومة (Target):* `{resistance:,.2f}`\n\n"
+        f"📈 *المؤشرات الحية:*\n"
+        f"• *مؤشر RSI(14):* `{rsi:.2f}`\n"
+        f"• *النموذج المرصود:* `{pattern}`\n\n"
         f"👑 *للتواصل والمتابعة الشخصية:* \n"
         f"[{creator}]({creator_link})"
     )
@@ -313,24 +339,18 @@ def send_telegram_photo_and_report(chat_id, message, image_path):
     if image_path and os.path.exists(image_path):
         url = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendPhoto"
         with open(image_path, 'rb') as photo_file:
-            payload = {
-                "chat_id": clean_chat_id, 
-                "caption": message, 
-                "parse_mode": "Markdown"
-            }
+            payload = {"chat_id": clean_chat_id, "caption": message, "parse_mode": "Markdown"}
             files = {"photo": photo_file}
             try:
                 response = requests.post(url, data=payload, files=files, timeout=10)
-                res_data = response.json()
-                if response.status_code == 200 and res_data.get("ok"):
-                    print(f"✅ تم إرسال الشارت الاحترافي والتقرير إلى المشترك: {clean_chat_id}")
+                if response.status_code == 200 and response.json().get("ok"):
                     return
-            except Exception as e:
-                print(f"❌ خطأ شبكة أثناء إرسال الصورة: {e}")
+            except:
+                pass
                 
     url_msg = f"https://api.telegram.org/bot{config.TELEGRAM_TOKEN}/sendMessage"
     payload_msg = {"chat_id": clean_chat_id, "text": message, "parse_mode": "Markdown"}
     try:
         requests.post(url_msg, json=payload_msg, timeout=10)
-    except Exception as e:
-        print(f"❌ خطأ في إرسال التقرير النصي: {e}")
+    except:
+        pass
