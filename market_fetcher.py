@@ -6,10 +6,10 @@ matplotlib.use('Agg')
 import mplfinance as mpf
 import os
 
-def calculate_rsi(series, period=14):
+def calculate_rsi(series, length=14):
     delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    gain = (delta.where(delta > 0, 0)).rolling(window=length).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=length).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
@@ -47,13 +47,12 @@ def get_market_data(symbol, interval="1h", limit=50):
             'volume': 15000.0
         }, index=dates)
 
-    # حساب المؤشرات الفنية مباشرة بدون الحاجة لـ pandas-ta
+    # حساب المؤشرات الفنية
     df['RSI'] = calculate_rsi(df['close'], length=14)
     df['SMA_20'] = df['close'].rolling(window=20).mean()
     df['SMA_50'] = df['close'].rolling(window=50).mean()
     df['EMA_9'] = df['close'].ewm(span=9, adjust=False).mean()
 
-    # تعويض القيم الفارغة الأولى إن وجدت
     df.fillna(method='bfill', inplace=True)
     df.fillna(50, inplace=True)
 
